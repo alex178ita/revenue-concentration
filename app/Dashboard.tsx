@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { Receivable } from '@/lib/zoho';
+import Logo from './Logo';
 import {
   concentration,
   dealLines,
@@ -61,6 +62,8 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
   });
   const [showAll, setShowAll] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState('/?refresh=1');
+  useEffect(() => setRefresh(refreshHref()), []);
 
   useEffect(() => {
     try {
@@ -110,13 +113,13 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
     <main className="wrap">
       <header className="top">
         <div>
-          <div className="brand">KLEECKS</div>
+          <Logo height={28} />
           <h1>Revenue Concentration &amp; Top-Account Stress Test</h1>
-          <p className="beta">v.0.1 - Beta for testing</p>
+          <p className="beta">v.0.1 — Beta for testing</p>
         </div>
         <div className="top-meta">
           <span className="muted">Zoho data as of {new Date(fetchedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-          <a className="btn ghost" href="/?refresh=1">Refresh</a>
+          <a className="btn ghost" href={refresh}>Refresh</a>
           <form method="post" action="/api/logout">
             <button className="btn ghost" type="submit">Sign out</button>
           </form>
@@ -383,6 +386,12 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
       </section>
     </main>
   );
+}
+
+function refreshHref() {
+  if (typeof window === 'undefined') return '/?refresh=1';
+  const key = new URLSearchParams(window.location.search).get('key');
+  return key ? `/?refresh=1&key=${encodeURIComponent(key)}` : '/?refresh=1';
 }
 
 function runwayText(m: number | null, horizon: number, monthlyNet: number, st: Settings, cashAtHorizon: number) {

@@ -2,7 +2,7 @@
 export const COOKIE = 'rc_session';
 
 export async function sessionToken(): Promise<string> {
-  const pw = process.env.APP_PASSWORD || '';
+  const pw = (process.env.APP_PASSWORD || '').trim();
   const secret = process.env.AUTH_SECRET || 'change-me';
   const data = new TextEncoder().encode(`${pw}::${secret}`);
   const hash = await crypto.subtle.digest('SHA-256', data);
@@ -10,7 +10,8 @@ export async function sessionToken(): Promise<string> {
 }
 
 export function passwordMatches(input: string | null | undefined): boolean {
-  const pw = process.env.APP_PASSWORD || '';
+  const pw = (process.env.APP_PASSWORD || '').trim();
+  input = (input || '').trim();
   if (!pw || !input || input.length !== pw.length) return false;
   let diff = 0;
   for (let i = 0; i < pw.length; i++) diff |= pw.charCodeAt(i) ^ input.charCodeAt(i);
