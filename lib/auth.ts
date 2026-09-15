@@ -1,9 +1,10 @@
-// Edge-compatible helpers (used by middleware and route handlers)
+// Auth helpers - all checks run in the Node.js runtime (page + route handlers), never in Edge middleware,
+// so the password and the session token are always computed from the same environment.
 export const COOKIE = 'rc_session';
 
 export async function sessionToken(): Promise<string> {
   const pw = (process.env.APP_PASSWORD || '').trim();
-  const secret = process.env.AUTH_SECRET || 'change-me';
+  const secret = (process.env.AUTH_SECRET || 'change-me').trim();
   const data = new TextEncoder().encode(`${pw}::${secret}`);
   const hash = await crypto.subtle.digest('SHA-256', data);
   return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('');
@@ -26,3 +27,9 @@ export const cookieOptions = {
   path: '/',
   maxAge: 60 * 60 * 12,
 };
+
+export async function isAuthorised(cookieValue: string | undefined, key: string | undefined): Promise<boolean> {
+  if (!(process.env.APP_PASSWORD || '').trim()) return false;
+  if (key && passwordMatches(key)) return true;
+  return !!cookieValue && cookieValue === (await sessionToken());
+}

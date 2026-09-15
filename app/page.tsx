@@ -1,9 +1,13 @@
 import Dashboard from './Dashboard';
 import { getSnapshot } from '@/lib/zoho';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { COOKIE, isAuthorised } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Page({ searchParams }: { searchParams: { refresh?: string } }) {
+export default async function Page({ searchParams }: { searchParams: { refresh?: string; key?: string } }) {
+  if (!(await isAuthorised(cookies().get(COOKIE)?.value, searchParams.key))) redirect('/login');
   try {
     const snap = await getSnapshot(searchParams.refresh === '1');
     return (
