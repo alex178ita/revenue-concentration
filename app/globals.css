@@ -13,6 +13,7 @@
   --warning: #c98500;
   --critical: #d23c3b;
   --accent-bg: #eef4fc;
+  --services: #4a3aa7;
   --brand: #111;
 }
 @media (prefers-color-scheme: dark) {
@@ -31,6 +32,7 @@
     --warning: #e0a526;
     --critical: #e66767;
     --accent-bg: #1d2a3a;
+    --services: #9085e9;
     --brand: #fff;
   }
 }
@@ -134,3 +136,13 @@ table.deals td { border-bottom-color: var(--border); }
 .splash p { color: var(--text-2); font-size: 15px; margin: 0; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 @media (prefers-reduced-motion: reduce) { .splash p { animation: none; } }
+
+/* Revenue components: licence vs services, annualised vs counted as contracted */
+.tag-licence { border-color: var(--keep); color: var(--keep); }
+.tag-services { border-color: var(--services); color: var(--services); }
+.sw-services { background: var(--services); }
+.pill { margin-left: 8px; font-size: 10px; font-weight: 600; border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.pill-annualised { background: color-mix(in srgb, var(--keep) 14%, transparent); color: var(--keep); }
+.pill-ascontracted { background: color-mix(in srgb, var(--services) 16%, transparent); color: var(--services); }
+tr.row-annualised td:nth-child(5) { box-shadow: inset 3px 0 0 var(--keep); }
+tr.row-ascontracted td:nth-child(5) { box-shadow: inset 3px 0 0 var(--services); }

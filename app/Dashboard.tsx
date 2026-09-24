@@ -27,7 +27,7 @@ type Props = {
   receivablesError: string | null;
   fetchedAt: string;
   crmOrg: string;
-  defaults: { cash: number; fixedMonthly: number; execusRetainedPct: number; minAnnualiseMonths: number };
+  defaults: { cash: number; fixedMonthly: number; execusRetainedPct: number; minAnnualiseMonths: number; includeServices: boolean };
 };
 
 const STORE = 'rc-settings-v1';
@@ -59,6 +59,7 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
     fixedMonthly: defaults.fixedMonthly,
     otherMonthlyMargin: 0,
     savingsPct: 0,
+    includeServices: defaults.includeServices,
     minAnnualiseMonths: defaults.minAnnualiseMonths,
   });
   const [showAll, setShowAll] = useState(false);
@@ -95,7 +96,7 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
   const sc = useMemo(() => scenario(list, st), [list, st]);
   const lostKeys = new Set(sc.lost.map((e) => e.key));
   const band = hhiBand(conc.hhi);
-  const noDates = useMemo(() => excludedDeals(deals), [deals]);
+  const noDates = useMemo(() => excludedDeals(deals, st.includeServices), [deals, st.includeServices]);
 
   const toggleLost = (key: string) => {
     const current = st.lostOverride ?? sc.lost.map((e) => e.key);
@@ -107,7 +108,8 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
   const maxShare = list[0]?.share || 1;
   let cumulative = 0;
 
-  const revenueLabel = st.basis === 'runrate' ? 'Licence ARR' : 'Licence revenue, trailing 12 months';
+  const scope = st.includeServices ? 'Licence + services' : 'Licence';
+  const revenueLabel = st.basis === 'runrate' ? `${scope} run-rate` : `${scope} revenue, trailing 12 months`;
   const crmLink = (id: string) => `https://crm.zoho.eu/crm/org${crmOrg}/tab/Potentials/${id}`;
 
   return (
@@ -136,6 +138,13 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
             value={st.basis}
             onChange={(v) => setStructural('basis', v)}
             options={[['runrate', 'Run-rate ARR'], ['ttm', 'Trailing 12 months']]}
+          />
+        </Field>
+        <Field label="Revenue scope">
+          <Segmented<'licence' | 'all'>
+            value={st.includeServices ? 'all' : 'licence'}
+            onChange={(v) => setStructural('includeServices', v === 'all')}
+            options={[['licence', 'Licences only'], ['all', 'Licences + services']]}
           />
         </Field>
         <Field label="Annualise from" hint="Shorter licences count at contract value">
@@ -186,6 +195,7 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
           <div className="legend">
             <span><i className="sw sw-keep" /> Retained in scenario</span>
             <span><i className="sw sw-lost" /> Lost in scenario</span>
+            <span><i className="sw sw-services" /> Services component</span>
           </div>
         </div>
         <div className="table-scroll">
@@ -199,7 +209,7 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
                 <th className="r">Revenue</th>
                 <th className="r">Contribution</th>
                 <th className="r">Cumulative</th>
-                <th className="r">Latest licence end</th>
+                <th className="r">Latest contract end</th>
               </tr>
             </thead>
             <tbody>
@@ -219,7 +229,7 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
                         </button>
                         {e.lvmh && <span className="tag">LVMH</span>}
                         {e.passThrough && <span className="tag">Pass-through</span>}
-                        {e.shortTerm && <span className="tag">Short-term</span>}
+                        {e.hasServices && <span className="tag tag-services">Services</span>}
                       </td>
                       <td className="bar-col">
                         <div className="bar-track" title={`${e.label}: ${pct(e.share)} · ${eur(e.revenue)}`}>
@@ -240,8 +250,8 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
                             <thead>
                               <tr>
                                 <th>Deal</th>
-                                <th>Billing entity</th>
-                                <th>Licence period</th>
+                                <th>Component</th>
+                                <th>Period</th>
                                 <th className="r">Contract value</th>
                                 <th className="r">Counted</th>
                                 <th className="r">Third-party cost</th>
@@ -249,17 +259,33 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
                             </thead>
                             <tbody>
                               {e.lines.map((l) => (
-                                <tr key={l.deal.id}>
+                                <tr key={`${l.deal.id}-${l.kind}`} className={l.annualised ? 'row-annualised' : 'row-ascontracted'}>
                                   <td>
                                     <a href={crmLink(l.deal.id)} target="_blank" rel="noreferrer">{l.deal.name}</a>
-                                    {l.passThrough && <span className="tag">Pass-through</span>}
-                                    {l.shortTerm && <span className="tag">Short-term, not annualised</span>}
-                                    {l.deal.lost && <span className="tag">Licence lost</span>}
+                                    <div className="muted small">{l.deal.account}</div>
                                   </td>
-                                  <td>{l.deal.account}</td>
-                                  <td className="muted">{fmtDate(l.deal.start)} – {fmtDate(l.deal.end)}</td>
-                                  <td className="r num">{eur(l.deal.licence)}</td>
-                                  <td className="r num">{eur(l.revenue)}</td>
+                                  <td>
+                                    <span className={`tag ${l.kind === 'services' ? 'tag-services' : 'tag-licence'}`}>
+                                      {l.kind === 'services' ? 'Services' : 'Licence'}
+                                    </span>
+                                    {l.passThrough && <span className="tag">Pass-through</span>}
+                                    {l.deal.lost && <span className="tag">Lost</span>}
+                                  </td>
+                                  <td className="muted">
+                                    {fmtDate(l.period?.start ?? null)} – {fmtDate(l.period?.end ?? null)} ({l.months.toFixed(1)} m)
+                                    {l.period?.estimated && <span className="tag">dates estimated</span>}
+                                  </td>
+                                  <td className="r num">{eur(l.contractValue)}</td>
+                                  <td className="r num">
+                                    {eur(l.revenue)}
+                                    <span className={`pill ${l.annualised ? 'pill-annualised' : 'pill-ascontracted'}`}>
+                                      {!l.annualised
+                                        ? 'as contracted'
+                                        : Math.abs(l.multiplier - 1) < 0.02
+                                          ? 'annual'
+                                          : `annualised ×${l.multiplier.toFixed(2)}`}
+                                    </span>
+                                  </td>
                                   <td className="r num">{eur(l.cost)}</td>
                                 </tr>
                               ))}
@@ -358,16 +384,26 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
       <section className="card notes">
         <h2>Method</h2>
         <ul>
-          <li><b>Source:</b> Zoho CRM deals in stage “8. Client Won” with Licence &gt; 0; the Licence field is net of VAT.</li>
+          <li>
+            <b>Source:</b> Zoho CRM deals in stage “8. Client Won” with Licence &gt; 0 or Delivery &gt; 0; both fields are
+            net of VAT. Delivery is the total of the services components (Development, Managed Services, Training, SEO,
+            One Spot), so those are never double counted.
+          </li>
+          <li>
+            <b>Services:</b> counted only in the “Licences + services” scope. The period comes from Project Start and
+            Project End; when the end is missing it is derived from the Deal Revenue section (Duration × Duration Basis)
+            starting at Project Start, or at the Expected Date of First Invoice, and the row is marked “dates estimated”.
+            A year-long strategy or managed-service engagement is therefore treated exactly like a licence.
+          </li>
           <li>
             <b>Run-rate ARR:</b> licence value of deals whose licence period includes the “as of” date, annualised on the
             period length (a 3-month extension counts ×4). Deals flagged “Licence lost” are excluded. Renewals not yet won
             are not counted, so an account between two contracts drops out.
           </li>
           <li>
-            <b>Short licences:</b> a licence shorter than {st.minAnnualiseMonths} months (POCs, extensions) is counted at
-            its contract value and tagged “Short-term”, because annualising it would multiply a few weeks of revenue into
-            a full year. Above the threshold the value is annualised on the period length.
+            <b>Short contracts:</b> a contract shorter than {st.minAnnualiseMonths} months (POCs, extensions) is counted at
+            its contract value and marked “as contracted”, because annualising it would multiply a few weeks of revenue into a
+            full year. Above the threshold the value is annualised on the period length and marked “annualised”.
           </li>
           <li><b>Trailing 12 months:</b> licence value pro-rata on the days of the licence period falling in the last 365 days, including lost licences.</li>
           <li><b>End client:</b> the deal’s Final Client, or the Account when empty. <b>Group</b> maps brands to their corporate group (e.g. all LVMH maisons). <b>Billing entity</b> is the CRM Account that is invoiced (e.g. Jakala).</li>
@@ -384,11 +420,14 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
         </ul>
         {noDates.length > 0 && (
           <details>
-            <summary>{noDates.length} won licence deals without licence dates are excluded</summary>
+            <summary>
+              {noDates.length} won components cannot be placed in time and are excluded ({eurK(noDates.reduce((a, x) => a + x.value, 0))})
+            </summary>
             <ul className="small">
-              {noDates.map((d) => (
-                <li key={d.id}>
-                  <a href={crmLink(d.id)} target="_blank" rel="noreferrer">{d.name}</a> · {d.account} · {eur(d.licence)}
+              {noDates.map((x) => (
+                <li key={`${x.deal.id}-${x.kind}`}>
+                  <a href={crmLink(x.deal.id)} target="_blank" rel="noreferrer">{x.deal.name}</a> · {x.deal.account} ·{' '}
+                  {x.kind === 'services' ? 'services' : 'licence'} {eur(x.value)} · {x.reason}
                 </li>
               ))}
             </ul>

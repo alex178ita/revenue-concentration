@@ -46,9 +46,35 @@ async function coql(query: string): Promise<any[]> {
 
 const day = (v: unknown) => (typeof v === 'string' && v.length >= 10 ? v.slice(0, 10) : null);
 
+// The CRM "Deal Revenue" section states a duration as a count plus a basis
+// Values seen in this CRM: Month, Fixed, Bimonthly, Half yearly
+const BASIS_MONTHS: Record<string, number> = {
+  day: 1 / 30,
+  daily: 1 / 30,
+  week: 0.25,
+  weekly: 0.25,
+  month: 1,
+  monthly: 1,
+  bimonthly: 2,
+  quarter: 3,
+  quarterly: 3,
+  'half yearly': 6,
+  'half-yearly': 6,
+  year: 12,
+  yearly: 12,
+  annually: 12,
+  fixed: 12, // "Fixed" carries no unit: assume a 12-month engagement
+};
+
+function durationMonths(duration: unknown, basis: unknown): number | null {
+  const n = Number(duration);
+  const per = BASIS_MONTHS[String(basis ?? '').trim().toLowerCase()];
+  return Number.isFinite(n) && n > 0 && per ? n * per : null;
+}
+
 export async function fetchLicenceDeals(): Promise<Deal[]> {
   const rows = await coql(
-    "select Deal_Name, Account_Name.Account_Name, Final_Client.Account_Name, Licence, Licence_Start_Date, Licence_End_Date, Licence_Lost, Contact_Holder, Grand_Total, Currency, Exchange_Rate from Deals where (Stage = '8. Client Won' and Licence > 0) order by id",
+    "select Deal_Name, Account_Name.Account_Name, Final_Client.Account_Name, Licence, Licence_Start_Date, Licence_End_Date, Licence_Lost, Contact_Holder, Grand_Total, Currency, Exchange_Rate, Delivery, Project_Start_Date, Project_End_Date, Duration, Duration_Basis, Expected_Date_of_First_Invoice from Deals where (Stage = '8. Client Won' and (Licence > 0 or Delivery > 0)) order by id",
   );
   return rows.map((r) => {
     const rate = Number(r.Exchange_Rate) || 1;
@@ -61,6 +87,11 @@ export async function fetchLicenceDeals(): Promise<Deal[]> {
       licence: eur(r.Licence) ?? 0,
       start: day(r.Licence_Start_Date),
       end: day(r.Licence_End_Date),
+      services: eur(r.Delivery) ?? 0,
+      projectStart: day(r.Project_Start_Date),
+      projectEnd: day(r.Project_End_Date),
+      durationMonths: durationMonths(r.Duration, r.Duration_Basis),
+      firstInvoice: day(r.Expected_Date_of_First_Invoice),
       lost: Boolean(r.Licence_Lost),
       providersCost: eur(r.Grand_Total),
       holder: r.Contact_Holder ?? null,
