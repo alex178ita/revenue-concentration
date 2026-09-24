@@ -31,6 +31,7 @@ export type Settings = {
   fixedMonthly: number;
   otherMonthlyMargin: number; // services etc., not in licence ARR
   savingsPct: number; // % of lost revenue that becomes avoidable cost once lost
+  minAnnualiseMonths: number; // licences shorter than this are counted at contract value, not annualised
 };
 
 export type DealLine = {
@@ -39,6 +40,7 @@ export type DealLine = {
   grossRevenue: number; // before Execus netting
   cost: number; // direct third-party cost, same basis
   passThrough: boolean;
+  shortTerm: boolean; // counted at contract value because the licence is shorter than the threshold
   client: string;
   group: string;
 };
@@ -52,6 +54,7 @@ export type Entity = {
   share: number; // 0..1
   lvmh: boolean;
   passThrough: boolean;
+  shortTerm: boolean;
   lastEnd: string | null;
   lines: DealLine[];
 };
@@ -78,15 +81,27 @@ export function isPassThrough(d: Deal) {
   return PASS_THROUGH_ACCOUNT.test(d.account) && !d.finalClient;
 }
 
+export function licenceDays(d: Deal): number {
+  return d.start && d.end ? daysBetween(d.start, d.end) + 1 : 0;
+}
+
+/** A licence shorter than the threshold (POCs, extensions) is not treated as a recurring contract. */
+export function isShortTerm(d: Deal, minMonths: number): boolean {
+  const len = licenceDays(d);
+  return len > 0 && len < Math.round((minMonths * 365) / 12);
+}
+
 /** Revenue factor of a deal for the chosen basis (fraction of licence value, annualised). */
-function factor(d: Deal, asOf: string, basis: Basis): number {
+function factor(d: Deal, asOf: string, basis: Basis, minMonths: number): number {
   if (!d.start || !d.end || d.licence <= 0) return 0;
   const len = daysBetween(d.start, d.end) + 1;
   if (len <= 0) return 0;
   if (basis === 'runrate') {
     if (d.lost) return 0; // declared churn: not part of recurring run-rate
     if (d.start > asOf || d.end < asOf) return 0;
-    return 365 / len;
+    // Short licences are counted at their contract value: annualising a 69-day POC would
+    // multiply it by five and put the account at the top of the ranking.
+    return isShortTerm(d, minMonths) ? 1 : 365 / len;
   }
   // trailing 12 months, pro-rata on licence days
   const from = addDays(asOf, -364);
@@ -100,7 +115,7 @@ export function dealLines(deals: Deal[], st: Settings): DealLine[] {
   const out: DealLine[] = [];
   const keep = st.execusRetainedPct / 100;
   for (const d of deals) {
-    const f = factor(d, st.asOf, st.basis);
+    const f = factor(d, st.asOf, st.basis, st.minAnnualiseMonths);
     if (f <= 0) continue;
     const pt = isPassThrough(d);
     const gross = d.licence * f;
@@ -110,7 +125,8 @@ export function dealLines(deals: Deal[], st: Settings): DealLine[] {
     const revenue = pt && st.execusView === 'net' ? gross * keep : gross;
     const cost = pt ? (st.execusView === 'net' ? Math.max(0, ptCost - gross * (1 - keep)) : ptCost) : providers;
     const client = d.finalClient || d.account;
-    out.push({ deal: d, revenue, grossRevenue: gross, cost, passThrough: pt, client, group: groupOf(client) });
+    const shortTerm = st.basis === 'runrate' && isShortTerm(d, st.minAnnualiseMonths);
+    out.push({ deal: d, revenue, grossRevenue: gross, cost, passThrough: pt, shortTerm, client, group: groupOf(client) });
   }
   return out;
 }
@@ -122,13 +138,14 @@ export function entities(lines: DealLine[], level: Level): Entity[] {
     const key = norm(label);
     let e = map.get(key);
     if (!e) {
-      e = { key, label, revenue: 0, cost: 0, margin: 0, share: 0, lvmh: false, passThrough: false, lastEnd: null, lines: [] };
+      e = { key, label, revenue: 0, cost: 0, margin: 0, share: 0, lvmh: false, passThrough: false, shortTerm: false, lastEnd: null, lines: [] };
       map.set(key, e);
     }
     e.revenue += l.revenue;
     e.cost += l.cost;
     e.lvmh = e.lvmh || isLvmh(l.client);
     e.passThrough = e.passThrough || l.passThrough;
+    e.shortTerm = e.shortTerm || l.shortTerm;
     if (l.deal.end && (!e.lastEnd || l.deal.end > e.lastEnd)) e.lastEnd = l.deal.end;
     e.lines.push(l);
   }

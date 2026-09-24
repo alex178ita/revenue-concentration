@@ -27,7 +27,7 @@ type Props = {
   receivablesError: string | null;
   fetchedAt: string;
   crmOrg: string;
-  defaults: { cash: number; fixedMonthly: number; execusRetainedPct: number };
+  defaults: { cash: number; fixedMonthly: number; execusRetainedPct: number; minAnnualiseMonths: number };
 };
 
 const STORE = 'rc-settings-v1';
@@ -59,6 +59,7 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
     fixedMonthly: defaults.fixedMonthly,
     otherMonthlyMargin: 0,
     savingsPct: 0,
+    minAnnualiseMonths: defaults.minAnnualiseMonths,
   });
   const [showAll, setShowAll] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
@@ -136,6 +137,9 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
             onChange={(v) => setStructural('basis', v)}
             options={[['runrate', 'Run-rate ARR'], ['ttm', 'Trailing 12 months']]}
           />
+        </Field>
+        <Field label="Annualise from" hint="Shorter licences count at contract value">
+          <NumberInput value={st.minAnnualiseMonths} suffix="months" min={0} max={24} onChange={(v) => setStructural('minAnnualiseMonths', v)} />
         </Field>
         <Field label="Concentration by">
           <Segmented<Level>
@@ -215,6 +219,7 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
                         </button>
                         {e.lvmh && <span className="tag">LVMH</span>}
                         {e.passThrough && <span className="tag">Pass-through</span>}
+                        {e.shortTerm && <span className="tag">Short-term</span>}
                       </td>
                       <td className="bar-col">
                         <div className="bar-track" title={`${e.label}: ${pct(e.share)} · ${eur(e.revenue)}`}>
@@ -248,6 +253,7 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
                                   <td>
                                     <a href={crmLink(l.deal.id)} target="_blank" rel="noreferrer">{l.deal.name}</a>
                                     {l.passThrough && <span className="tag">Pass-through</span>}
+                                    {l.shortTerm && <span className="tag">Short-term, not annualised</span>}
                                     {l.deal.lost && <span className="tag">Licence lost</span>}
                                   </td>
                                   <td>{l.deal.account}</td>
@@ -357,6 +363,11 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
             <b>Run-rate ARR:</b> licence value of deals whose licence period includes the “as of” date, annualised on the
             period length (a 3-month extension counts ×4). Deals flagged “Licence lost” are excluded. Renewals not yet won
             are not counted, so an account between two contracts drops out.
+          </li>
+          <li>
+            <b>Short licences:</b> a licence shorter than {st.minAnnualiseMonths} months (POCs, extensions) is counted at
+            its contract value and tagged “Short-term”, because annualising it would multiply a few weeks of revenue into
+            a full year. Above the threshold the value is annualised on the period length.
           </li>
           <li><b>Trailing 12 months:</b> licence value pro-rata on the days of the licence period falling in the last 365 days, including lost licences.</li>
           <li><b>End client:</b> the deal’s Final Client, or the Account when empty. <b>Group</b> maps brands to their corporate group (e.g. all LVMH maisons). <b>Billing entity</b> is the CRM Account that is invoiced (e.g. Jakala).</li>

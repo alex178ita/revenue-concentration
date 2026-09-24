@@ -21,6 +21,7 @@ export default async function Page({ searchParams }: { searchParams: { refresh?:
           cash: Number(process.env.DEFAULT_CASH_EUR) || 0,
           fixedMonthly: Number(process.env.DEFAULT_MONTHLY_FIXED_COST_EUR) || 0,
           execusRetainedPct: Number(process.env.DEFAULT_EXECUS_RETAINED_PCT) || 25,
+          minAnnualiseMonths: Number(process.env.DEFAULT_MIN_ANNUALISE_MONTHS) || 6,
         }}
       />
     );

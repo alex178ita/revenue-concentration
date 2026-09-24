@@ -11,7 +11,7 @@ const deals: Deal[] = raw.map((r: any) => ({
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 for (const [asOf, basis, level] of [['2026-09-15', 'runrate', 'client'], ['2026-09-15', 'runrate', 'group'], ['2026-09-15', 'ttm', 'client'], ['2026-06-01', 'runrate', 'client']] as const) {
   for (const view of ['gross', 'net'] as const) {
-    const st: Settings = { asOf, basis, level, execusView: view, execusRetainedPct: 25, loseN: 3, lostOverride: null, timing: 'expiry', cash: 500000, fixedMonthly: 120000, otherMonthlyMargin: 0, savingsPct: 0 };
+    const st: Settings = { asOf, basis, level, execusView: view, execusRetainedPct: 25, loseN: 3, lostOverride: null, timing: 'expiry', cash: 500000, fixedMonthly: 120000, otherMonthlyMargin: 0, savingsPct: 0, minAnnualiseMonths: 6 };
     const list = entities(dealLines(deals, st), level);
     const c = concentration(list);
     const x = exposures(deals, st);
