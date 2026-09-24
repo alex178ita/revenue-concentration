@@ -28,8 +28,21 @@ export const cookieOptions = {
   maxAge: 60 * 60 * 12,
 };
 
-export async function isAuthorised(cookieValue: string | undefined, key: string | undefined): Promise<boolean> {
+/**
+ * A request is authorised by any of:
+ *  - the session cookie (normal browser),
+ *  - ?key=<APP_PASSWORD> (the Zoho CRM Web Tab URL),
+ *  - ?t=<session token> (used after the login form, so the app keeps working where the
+ *    browser blocks cookies inside the CRM iframe; the token does not reveal the password).
+ */
+export async function isAuthorised(
+  cookieValue: string | undefined,
+  key: string | undefined,
+  token?: string | undefined,
+): Promise<boolean> {
   if (!(process.env.APP_PASSWORD || '').trim()) return false;
   if (key && passwordMatches(key)) return true;
-  return !!cookieValue && cookieValue === (await sessionToken());
+  const expected = await sessionToken();
+  if (token && token === expected) return true;
+  return !!cookieValue && cookieValue === expected;
 }

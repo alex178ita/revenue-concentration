@@ -6,8 +6,8 @@ import { COOKIE, isAuthorised } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Page({ searchParams }: { searchParams: { refresh?: string; key?: string } }) {
-  if (!(await isAuthorised(cookies().get(COOKIE)?.value, searchParams.key))) redirect('/login');
+export default async function Page({ searchParams }: { searchParams: { refresh?: string; key?: string; t?: string } }) {
+  if (!(await isAuthorised(cookies().get(COOKIE)?.value, searchParams.key, searchParams.t))) redirect('/login');
   try {
     const snap = await getSnapshot(searchParams.refresh === '1');
     return (

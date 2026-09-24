@@ -390,8 +390,13 @@ export default function Dashboard({ deals, receivables, receivablesError, fetche
 
 function refreshHref() {
   if (typeof window === 'undefined') return '/?refresh=1';
-  const key = new URLSearchParams(window.location.search).get('key');
-  return key ? `/?refresh=1&key=${encodeURIComponent(key)}` : '/?refresh=1';
+  const q = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams({ refresh: '1' });
+  for (const name of ['key', 't']) {
+    const v = q.get(name);
+    if (v) params.set(name, v);
+  }
+  return `/?${params}`;
 }
 
 function runwayText(m: number | null, horizon: number, monthlyNet: number, st: Settings, cashAtHorizon: number) {
